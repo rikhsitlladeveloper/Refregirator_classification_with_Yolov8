@@ -4,7 +4,9 @@ from ultralytics import YOLO
 import numpy as np
 import time
 import yaml
-from checkbarcode import BarCodeCheck
+import socket
+import json
+# from checkbarcode import BarCodeCheck
 with open('config.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
@@ -23,6 +25,27 @@ object_detected_time = None
 cap = cv2.VideoCapture(video_path)
 
 Yolo_model = YOLO(Yolo_model_name)
+
+samsung_rb = []
+samsung_rt = []
+bar_codes_path = "bar_codes.json"
+def get_barcode() -> None:
+    with open(bar_codes_path, 'r') as file:
+        data = json.load(file)
+    samsung_rb = data["Samsung RB"]
+    samsung_rt = data["Samsung RT"]
+
+def check_barcode(barcode:str) -> str:
+    if len(barcode) >= 4:
+        model = barcode[:4]
+        if model in samsung_rt:
+            return "Samsung RT"
+        elif model in samsung_rb:
+            return "Samsung RB"
+        else:
+            return "Not Specified Barcode"
+    else:
+        return "Not Specified Barcode"
 
 def set_full_screen_mode(frame_name):
     cv2.namedWindow(frame_name, cv2.WND_PROP_FULLSCREEN)
@@ -142,11 +165,13 @@ def remap_detected_model(detected_model):
     return detected_model
 
 if __name__ == "__main__":
-    barcodecheck = BarCodeCheck(host, port)
-    barcodecheck.get_barcode()
-    barcodecheck.start_tcp_server()
     try:
         set_full_screen_mode(screen_frame_name)
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind((host, port))
+        server_socket.listen(5)
+        print(f"TCP server is listening on {host}:{port}")
+
         while True:
             success, img = cap.read()
 
@@ -155,19 +180,38 @@ if __name__ == "__main__":
                 cap = connect_camera(video_path)
                 continue
 
-            result_img, detected_model = predict_and_detect(Yolo_model, img, classes=[], conf=confidance)
-            detected_obj = remap_detected_model(detected_model)
-            barcode = barcodecheck.get_tcp_server_data()
-            actual_model = barcodecheck.check_barcode(barcode)
+            client_socket, client_address = server_socket.accept()
+            print(f"Accepted connection from {client_address}")
+            try:
+                data = client_socket.recv(1024)
+                if data:
+                    decoded_data = data.decode('utf-8').replace('\r\n', '')
+                    print(f"Received data: {decoded_data}")
+                else:
+                    decoded_data = ""
+                actual_model = check_barcode(decoded_data)
+                result_img, detected_model = predict_and_detect(Yolo_model, img, classes=[], conf=confidance)
+                detected_obj = remap_detected_model(detected_model)
 
-            line_color = detection(result_img, detected_obj,actual_model)
-            mask = mask_frame(result_img, line_color, rect_width, rect_height)
-            put_text_on_frame(mask, actual_model)
+                line_color = detection(result_img, detected_obj,actual_model)
+                mask = mask_frame(result_img, line_color, rect_width, rect_height)
+                put_text_on_frame(mask, actual_model)
 
-            cv2.imshow(screen_frame_name, mask)
+                cv2.imshow(screen_frame_name, mask)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+
+            except KeyboardInterrupt:
+                    print('Socket close')
+                    client_socket.close()
                     break
+
+            except Exception as e:
+                print(f"Error while handling client connection: {e}")
+
+            finally:
+                client_socket.close()
 
     except Exception as e:
         print("Error occured: ", e)

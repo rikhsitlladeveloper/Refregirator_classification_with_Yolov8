@@ -31,18 +31,15 @@ class BarCodeCheck:
             return "Not Specified Barcode"
 
     def start_tcp_server(self) -> None:
-        try:
-            self.server_socket.bind((self.host, self.port))
+        self.server_socket.bind((self.host, self.port))
 
-            self.server_socket.listen(5)
+        self.server_socket.listen(5)
 
-            print(f"TCP server is listening on {self.host}:{self.port}")
-        except Exception as e:
-            print(f"Error occurred: {e}")
-        finally:
-            self.server_socket.close()
+        print(f"TCP server is listening on {self.host}:{self.port}")
+
 
     def get_tcp_server_data(self) -> str:
+        # self.start_tcp_server()
         client_socket, client_address = self.server_socket.accept()
 
         print(f"Accepted connection from {client_address}")
