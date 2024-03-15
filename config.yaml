@@ -5,3 +5,5 @@ reconnection_time: 5
 screen_frame_name: Texnopark_Refregirator_classification
 rect_width: 1000
 rect_height: 500
+tcp_server_ip: "10.113.100.82"
+tcp_server_port: 8001

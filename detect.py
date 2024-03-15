@@ -4,7 +4,7 @@ from ultralytics import YOLO
 import numpy as np
 import time
 import yaml
-
+from checkbarcode import BarCodeCheck
 with open('config.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
@@ -15,9 +15,10 @@ reconnection_time = config["reconnection_time"]
 screen_frame_name = config["screen_frame_name"]
 rect_width = config['rect_width']
 rect_height = config['rect_height']
-
+host = config['tcp_server_ip']
+port = config['tcp_server_port']
 object_detected_time = None
- 
+
 
 cap = cv2.VideoCapture(video_path)
 
@@ -68,7 +69,7 @@ def connect_camera(video_path):
             if cap.isOpened():
                 print("Connected to a camera: {}".format(video_path), flush=True)
                 break
-            
+
         except Exception as e:
             print(e)
 
@@ -76,7 +77,7 @@ def connect_camera(video_path):
                 break
 
             time.sleep(reconnection_time)
-    
+
     return cap
 
 
@@ -114,58 +115,63 @@ def detection(result_img, detected_model, actual_model):
             # Draw a tick on the frame
             cv2.circle(result_img, (200, 200), 30, (0, 255, 0), thickness=5)
         line_color = (0,255,0)
-    
+
     elif detected_model != 'None':
         line_color = (0,0,255)
         cv2.drawMarker(result_img, (200, 200),(0, 0, 255), markerType=cv2.MARKER_TILTED_CROSS, markerSize=50, thickness=5)
-    
+
     else:
         object_detected_time = None
         line_color = (255,0,0)
-    
+
     return line_color
-    
+
 def remap_detected_model(detected_model):
     if detected_model[:5] == 'Artel':
-        detected_model = 'Artel' 
-    
+        detected_model = 'Artel'
+
     elif detected_model[:11] == 'Samsung_RB':
-        detected_model = 'Samsung RB' 
-    
+        detected_model = 'Samsung RB'
+
     elif detected_model[:11] == 'Samsung_RT':
-        detected_model = 'Samsung RT' 
-    
+        detected_model = 'Samsung RT'
+
     elif detected_model[:7] == 'Shivaki':
-        detected_model = 'Shivaki' 
-   
+        detected_model = 'Shivaki'
+
     return detected_model
 
-try:
-    set_full_screen_mode(screen_frame_name)
-    while True:
-        success, img = cap.read()
+if __name__ == "__main__":
+    barcodecheck = BarCodeCheck(host, port)
+    barcodecheck.get_barcode()
+    barcodecheck.start_tcp_server()
+    try:
+        set_full_screen_mode(screen_frame_name)
+        while True:
+            success, img = cap.read()
 
-        if not success:
-            print("Stream stops!", flush=True)
-            cap = connect_camera(video_path)
-            continue
-        
-        result_img, detected_model = predict_and_detect(Yolo_model, img, classes=[], conf=confidance)
-        detected_obj = remap_detected_model(detected_model)
-        actual_model = 'Samsung RB'
-        
-        line_color = detection(result_img, detected_obj,actual_model)
-        mask = mask_frame(result_img, line_color, rect_width, rect_height)
-        put_text_on_frame(mask, actual_model)
+            if not success:
+                print("Stream stops!", flush=True)
+                cap = connect_camera(video_path)
+                continue
 
-        cv2.imshow(screen_frame_name, mask)
-        
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            result_img, detected_model = predict_and_detect(Yolo_model, img, classes=[], conf=confidance)
+            detected_obj = remap_detected_model(detected_model)
+            barcode = barcodecheck.get_tcp_server_data()
+            actual_model = barcodecheck.check_barcode(barcode)
 
-except Exception as e:
-    print("Error occured: ", e)
+            line_color = detection(result_img, detected_obj,actual_model)
+            mask = mask_frame(result_img, line_color, rect_width, rect_height)
+            put_text_on_frame(mask, actual_model)
 
-finally:
-    cap.release()
-    cv2.destroyAllWindows()
+            cv2.imshow(screen_frame_name, mask)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+
+    except Exception as e:
+        print("Error occured: ", e)
+
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
