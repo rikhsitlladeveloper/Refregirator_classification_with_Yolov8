@@ -31,23 +31,22 @@ samsung_rb = []
 samsung_rt = []
 bar_codes_path = "bar_codes.json"
 def get_barcode() -> None:
+    global samsung_rb, samsung_rt
+
     with open(bar_codes_path, 'r') as file:
         data = json.load(file)
     samsung_rb = data["Samsung RB"]
     samsung_rt = data["Samsung RT"]
 
 def check_barcode(barcode:str) -> str:
-    if len(barcode) >= 4:
-        model = barcode[:4]
-        if model in samsung_rt:
-            return "Samsung RT"
-        elif model in samsung_rb:
-            return "Samsung RB"
-        else:
-            return "Not Specified Barcode"
+    model = barcode[:4]
+    if model in samsung_rt:
+        return "Samsung RT"
+    elif model in samsung_rb:
+        return "Samsung RB"
     else:
         return "Not Specified Barcode"
-
+    
 def start_tcp_server() -> None:
     global actual_model
     try:
