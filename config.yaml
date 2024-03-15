@@ -1,6 +1,6 @@
 model_name: best_M_model.pt
 confidance: 0.6
-stream_url: rtsp://admin:12345678aA@10.10.21.189:554/1
+stream_url: rtsp://admin:123456789a@10.113.100.97:554/1
 reconnection_time: 5
 screen_frame_name: Texnopark_Refregirator_classification
 rect_width: 1000
