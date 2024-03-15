@@ -28,17 +28,17 @@ def set_full_screen_mode(frame_name):
     cv2.setWindowProperty(frame_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
 
-def predict(chosen_model, img, classes=[], conf):
+def predict(chosen_model, img, classes=[], conf=confidance):
     if classes:
-        results = chosen_model.predict(img, classes=classes, conf=conf)
+        results = chosen_model.predict(img, classes=classes, conf=confidance)
     else:
-        results = chosen_model.predict(img, conf=conf)
+        results = chosen_model.predict(img, conf=confidance)
 
     return results
 
-def predict_and_detect(chosen_model, img, classes=[], conf):
+def predict_and_detect(chosen_model, img, classes=[], conf=confidance):
     model = "None"
-    results = predict(chosen_model, img, classes, conf=conf)
+    results = predict(chosen_model, img, classes, conf=confidance)
     for result in results:
         for box in result.boxes:
             conf = float(box.conf[0]) * 100
@@ -125,7 +125,20 @@ def detection(result_img, detected_model, actual_model):
     
     return line_color
     
-
+def remap_detected_model(detected_model):
+    if detected_model[:5] == 'Artel':
+        detected_model = 'Artel' 
+    
+    elif detected_model[:11] == 'Samsung_RB':
+        detected_model = 'Samsung RB' 
+    
+    elif detected_model[:11] == 'Samsung_RT':
+        detected_model = 'Samsung RT' 
+    
+    elif detected_model[:7] == 'Shivaki':
+        detected_model = 'Shivaki' 
+   
+    return detected_model
 
 try:
     set_full_screen_mode(screen_frame_name)
@@ -138,10 +151,10 @@ try:
             continue
         
         result_img, detected_model = predict_and_detect(Yolo_model, img, classes=[], conf=confidance)
+        detected_obj = remap_detected_model(detected_model)
+        actual_model = 'Samsung RB'
         
-        actual_model = 'Artel_1'
-        
-        line_color = detection(result_img, detected_model,actual_model)
+        line_color = detection(result_img, detected_obj,actual_model)
         mask = mask_frame(result_img, line_color, rect_width, rect_height)
         put_text_on_frame(mask, actual_model)
 
