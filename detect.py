@@ -6,6 +6,7 @@ import time
 import yaml
 import socket
 import json
+import threading
 # from checkbarcode import BarCodeCheck
 with open('config.yaml', 'r') as file:
     config = yaml.safe_load(file)
@@ -21,7 +22,7 @@ host = config['tcp_server_ip']
 port = config['tcp_server_port']
 object_detected_time = None
 
-
+actual_model = "None"
 cap = cv2.VideoCapture(video_path)
 
 Yolo_model = YOLO(Yolo_model_name)
@@ -46,6 +47,47 @@ def check_barcode(barcode:str) -> str:
             return "Not Specified Barcode"
     else:
         return "Not Specified Barcode"
+
+def start_tcp_server() -> None:
+    global actual_model
+    try:
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        server_socket.bind((host,port))
+
+        server_socket.listen(5)
+
+        print(f"TCP server is listening on {host}:{port}")
+
+        while True:
+            client_socket, client_address = server_socket.accept()
+
+            print(f"Accepted connection from {client_address}")
+
+            try:
+                data = client_socket.recv(1024)
+
+                if data:
+                    decoded_data = data.decode('utf-8').replace('\r\n', '')
+                    print(f"Received data: {decoded_data}")
+                    actual_model = check_barcode(decoded_data)
+                    print(f"Fridge Model: {actual_model}")
+
+            except KeyboardInterrupt:
+                print('Socket close')
+                client_socket.close()
+                break
+
+            except Exception as e:
+                print(f"Error while handling client connection: {e}")
+
+            finally:
+                client_socket.close()
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+    finally:
+        server_socket.close()
 
 def set_full_screen_mode(frame_name):
     cv2.namedWindow(frame_name, cv2.WND_PROP_FULLSCREEN)
@@ -165,13 +207,11 @@ def remap_detected_model(detected_model):
     return detected_model
 
 if __name__ == "__main__":
+    tcp_server_thread = threading.Thread(target=start_tcp_server)
+    tcp_server_thread.start()
     try:
         set_full_screen_mode(screen_frame_name)
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind((host, port))
-        server_socket.listen(5)
-        print(f"TCP server is listening on {host}:{port}")
-
+        get_barcode()
         while True:
             success, img = cap.read()
 
@@ -180,38 +220,17 @@ if __name__ == "__main__":
                 cap = connect_camera(video_path)
                 continue
 
-            client_socket, client_address = server_socket.accept()
-            print(f"Accepted connection from {client_address}")
-            try:
-                data = client_socket.recv(1024)
-                if data:
-                    decoded_data = data.decode('utf-8').replace('\r\n', '')
-                    print(f"Received data: {decoded_data}")
-                else:
-                    decoded_data = ""
-                actual_model = check_barcode(decoded_data)
-                result_img, detected_model = predict_and_detect(Yolo_model, img, classes=[], conf=confidance)
-                detected_obj = remap_detected_model(detected_model)
+            result_img, detected_model = predict_and_detect(Yolo_model, img, classes=[], conf=confidance)
+            detected_obj = remap_detected_model(detected_model)
 
-                line_color = detection(result_img, detected_obj,actual_model)
-                mask = mask_frame(result_img, line_color, rect_width, rect_height)
-                put_text_on_frame(mask, actual_model)
+            line_color = detection(result_img, detected_obj,actual_model)
+            mask = mask_frame(result_img, line_color, rect_width, rect_height)
+            put_text_on_frame(mask, actual_model)
 
-                cv2.imshow(screen_frame_name, mask)
+            cv2.imshow(screen_frame_name, mask)
 
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                        break
-
-            except KeyboardInterrupt:
-                    print('Socket close')
-                    client_socket.close()
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-
-            except Exception as e:
-                print(f"Error while handling client connection: {e}")
-
-            finally:
-                client_socket.close()
 
     except Exception as e:
         print("Error occured: ", e)
