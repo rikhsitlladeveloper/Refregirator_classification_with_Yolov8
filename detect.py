@@ -1,18 +1,34 @@
 import os
 import cv2
 from ultralytics import YOLO
+import numpy as np
+import time
+import yaml
 
-model = YOLO("best_M_model.pt")
+with open('config.yaml', 'r') as file:
+    config = yaml.safe_load(file)
 
-video_path = 'rtsp://admin:123456789a@10.113.100.97:554/1'  # Change this to your video file's path
+Yolo_model_name = config['model_name']
+confidance = config['confidance']
+video_path = config['stream_url']
+reconnection_time = config["reconnection_time"]
+screen_frame_name = config["screen_frame_name"]
+rect_width = config['rect_width']
+rect_height = config['rect_height']
+
+object_detected_time = None
+ 
 
 cap = cv2.VideoCapture(video_path)
-output_filename = "result"
 
-if not os.path.exists(output_filename):
-    os.makedirs(output_filename)
+Yolo_model = YOLO(Yolo_model_name)
 
-def predict(chosen_model, img, classes=[], conf=0.5):
+def set_full_screen_mode(frame_name):
+    cv2.namedWindow(frame_name, cv2.WND_PROP_FULLSCREEN)
+    cv2.setWindowProperty(frame_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
+
+def predict(chosen_model, img, classes=[], conf):
     if classes:
         results = chosen_model.predict(img, classes=classes, conf=conf)
     else:
@@ -20,49 +36,116 @@ def predict(chosen_model, img, classes=[], conf=0.5):
 
     return results
 
-
-def predict_and_detect(chosen_model, img, classes=[], conf=0.5):
+def predict_and_detect(chosen_model, img, classes=[], conf):
+    model = "None"
     results = predict(chosen_model, img, classes, conf=conf)
-
     for result in results:
         for box in result.boxes:
             conf = float(box.conf[0]) * 100
-            model  = box.cls
+            model  = result.names[int(box.cls[0])]
             print("Detected: ", result.names[int(box.cls[0])])
             print("Conf: ", conf)
             cv2.rectangle(img, (int(box.xyxy[0][0]), int(box.xyxy[0][1])),
                           (int(box.xyxy[0][2]), int(box.xyxy[0][3])), (255, 0, 0), 2)
-            cv2.putText(img, f"{result.names[int(box.cls[0])] , int(conf)} % ",
+            cv2.putText(img, f"{result.names[int(box.cls[0])] , int(conf)}%",
                         (int(box.xyxy[0][0]), int(box.xyxy[0][1]) - 10),
                         cv2.FONT_HERSHEY_PLAIN, 1, (255, 0, 0), 1)
-    return img, results
+    return img, model
 
-def create_video_writer(video_cap, output_filename):
-    # grab the width, height, and fps of the frames in the video stream.
-    frame_width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frame_height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = int(video_cap.get(cv2.CAP_PROP_FPS))
-
-    # initialize the FourCC and a video writer object
-    fourcc = cv2.VideoWriter_fourcc(*'MP4V')
-    writer = cv2.VideoWriter(output_filename, fourcc, fps,
-                             (frame_width, frame_height))
-
-    return writer
-
-writer = create_video_writer(cap, output_filename)
-try:
+def connect_camera(video_path):
+    print("Connecting...")
     while True:
+        try:
+            if cam_force_address is not None:
+                requests.get(cam_force_address)
 
+            cap = cv2.VideoCapture(video_path)
+
+            if not cap.isOpened():
+                time.sleep(reconnection_time)
+                raise Exception("Could not connect to a camera: {0}".format(video_path))
+
+            if cap.isOpened():
+                print("Connected to a camera: {}".format(video_path), flush=True)
+                break
+            
+        except Exception as e:
+            print(e)
+
+            if blocking is False:
+                break
+
+            time.sleep(reconnection_time)
+    
+    return cap
+
+
+def mask_frame(image, line_color, rect_width, rect_height):
+    # Calculate the position of the rectangle
+    x_center = image.shape[1] // 2
+    y_center = image.shape[0] // 2
+    top_left = (x_center - rect_width // 2, y_center - rect_height // 2)
+    bottom_right = (x_center + rect_width // 2, y_center + rect_height // 2)
+    cv2.rectangle(image, top_left, bottom_right, line_color, thickness=8)
+
+    # Create a mask
+    mask = np.zeros(image.shape[:2], dtype=np.uint8)
+    mask[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]] = 255
+
+    # Blur the entire image
+    blurred_image = cv2.GaussianBlur(image, (41, 41), 0)
+
+    # Apply the mask to combine the blurred image and the original image
+    masked = np.where(mask[:, :, None].astype(bool), image, blurred_image)
+    return masked
+
+def put_text_on_frame(frame, model):
+    x_center = frame.shape[1] // 2
+    text_size = cv2.getTextSize(model, cv2.FONT_HERSHEY_SIMPLEX, 4, 6)[0]
+    w = int(x_center - text_size[0]/2)
+    cv2.putText(frame, model, (w, 100), cv2.FONT_HERSHEY_SIMPLEX, 4,(0, 255, 0), 6)
+
+def detection(result_img, detected_model, actual_model):
+    global object_detected_time
+    if detected_model == actual_model:  # Replace with your object's label
+        if object_detected_time is None:
+            object_detected_time = time.time()
+        elif time.time() - object_detected_time >= 1:
+            # Draw a tick on the frame
+            cv2.circle(result_img, (200, 200), 30, (0, 255, 0), thickness=5)
+        line_color = (0,255,0)
+    
+    elif detected_model != 'None':
+        line_color = (0,0,255)
+        cv2.drawMarker(result_img, (200, 200),(0, 0, 255), markerType=cv2.MARKER_TILTED_CROSS, markerSize=50, thickness=5)
+    
+    else:
+        object_detected_time = None
+        line_color = (255,0,0)
+    
+    return line_color
+    
+
+
+try:
+    set_full_screen_mode(screen_frame_name)
+    while True:
         success, img = cap.read()
 
         if not success:
-            break
-
-        result_img, _ = predict_and_detect(model, img, classes=[], conf=0.5)
+            print("Stream stops!", flush=True)
+            cap = connect_camera(video_path)
+            continue
         
-        writer.write(result_img)
-        cv2.imshow("Image", result_img)
+        result_img, detected_model = predict_and_detect(Yolo_model, img, classes=[], conf=confidance)
+        
+        actual_model = 'Artel_1'
+        
+        line_color = detection(result_img, detected_model,actual_model)
+        mask = mask_frame(result_img, line_color, rect_width, rect_height)
+        put_text_on_frame(mask, actual_model)
+
+        cv2.imshow(screen_frame_name, mask)
         
         if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -72,7 +155,4 @@ except Exception as e:
 
 finally:
     cap.release()
-    if writer:
-        writer.release()
-
     cv2.destroyAllWindows()
