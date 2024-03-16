@@ -29,14 +29,22 @@ Yolo_model = YOLO(Yolo_model_name)
 
 samsung_rb = []
 samsung_rt = []
+artel = []
+shivaki = []
+berg = []
+maunfeld = []
 bar_codes_path = "bar_codes.json"
 def get_barcode() -> None:
-    global samsung_rb, samsung_rt
+    global samsung_rb, samsung_rt, artel, berg, shivaki, maunfeld
 
     with open(bar_codes_path, 'r') as file:
         data = json.load(file)
     samsung_rb = data["Samsung RB"]
     samsung_rt = data["Samsung RT"]
+    artel = data["Artel"]
+    shivaki = data["Shivaki"]
+    berg = data["Berg"]
+    maunfeld = data["Maunfeld"]
 
 def check_barcode(barcode:str) -> str:
     model = barcode[:4]
@@ -44,9 +52,17 @@ def check_barcode(barcode:str) -> str:
         return "Samsung RT"
     elif model in samsung_rb:
         return "Samsung RB"
+    elif model in artel:
+        return "Artel"
+    elif model in shivaki:
+        return "Shivaki"
+    elif model in berg:
+        return "Berg"
+    elif model in maunfeld:
+        return "Maunfeld"
     else:
         return "Not Specified Barcode"
-    
+
 def start_tcp_server() -> None:
     global actual_model
     try:
