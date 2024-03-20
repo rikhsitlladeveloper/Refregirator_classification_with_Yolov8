@@ -7,6 +7,7 @@ import yaml
 import socket
 import json
 import threading
+from typing import Tuple
 # from checkbarcode import BarCodeCheck
 with open('config.yaml', 'r') as file:
     config = yaml.safe_load(file)
@@ -20,21 +21,25 @@ rect_width = config['rect_width']
 rect_height = config['rect_height']
 host = config['tcp_server_ip']
 port = config['tcp_server_port']
+bar_codes_path = config['barcodes_file']
 object_detected_time = None
 
-actual_model = "None"
+barcode = 'None'
+brand = 'None'
+model_name = 'None'
+
 cap = cv2.VideoCapture(video_path)
 
 Yolo_model = YOLO(Yolo_model_name)
 
-samsung_rb = []
-samsung_rt = []
-artel = []
-shivaki = []
-berg = []
-maunfeld = []
-bar_codes_path = "bar_codes.json"
-def get_barcode() -> None:
+samsung_rb = {}
+samsung_rt = {}
+artel = {}
+shivaki = {}
+berg = {}
+maunfeld = {}
+
+def get_models() -> None:
     global samsung_rb, samsung_rt, artel, berg, shivaki, maunfeld
 
     with open(bar_codes_path, 'r') as file:
@@ -46,25 +51,28 @@ def get_barcode() -> None:
     berg = data["Berg"]
     maunfeld = data["Maunfeld"]
 
-def check_barcode(barcode:str) -> str:
+def check_barcode(barcode:str) -> Tuple[str, str]:
     model = barcode[:4]
-    if model in samsung_rt:
-        return "Samsung RT"
-    elif model in samsung_rb:
-        return "Samsung RB"
-    elif model in artel:
-        return "Artel"
-    elif model in shivaki:
-        return "Shivaki"
-    elif model in berg:
-        return "Berg"
-    elif model in maunfeld:
-        return "Maunfeld"
+    if len(model) >= 4:
+        if model in samsung_rt.keys():
+            return ("Samsung RT", samsung_rt[model])
+        elif model in samsung_rb.keys():
+            return ("Samsung RB", samsung_rb[model])
+        elif model in artel.keys():
+            return ("Artel", artel[model])
+        elif model in shivaki.keys():
+            return ("Shivaki", shivaki[model])
+        elif model in berg.keys():
+            return ("Berg", berg[model])
+        elif model in maunfeld.keys():
+            return ("Maunfeld", maunfeld[model])
+        else:
+            return ("None", "None")
     else:
-        return "Not Specified Barcode"
+        return ("None", "None")
 
 def start_tcp_server() -> None:
-    global actual_model
+    global brand, barcode, model_name
     try:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -83,10 +91,10 @@ def start_tcp_server() -> None:
                 data = client_socket.recv(1024)
 
                 if data:
-                    decoded_data = data.decode('utf-8').replace('\r\n', '')
-                    print(f"Received data: {decoded_data}")
-                    actual_model = check_barcode(decoded_data)
-                    print(f"Fridge Model: {actual_model}")
+                    barcode = data.decode('utf-8').replace('\r\n', '')
+                    print(f"Received data: {barcode}")
+                    brand, model_name = check_barcode(barcode)
+                    print(f"Fridge Brand: {brand}  Model: {model_name}")
 
             except KeyboardInterrupt:
                 print('Socket close')
@@ -222,11 +230,11 @@ def remap_detected_model(detected_model):
     return detected_model
 
 if __name__ == "__main__":
+    get_models()
     tcp_server_thread = threading.Thread(target=start_tcp_server)
     tcp_server_thread.start()
     try:
         set_full_screen_mode(screen_frame_name)
-        get_barcode()
         while True:
             success, img = cap.read()
 
