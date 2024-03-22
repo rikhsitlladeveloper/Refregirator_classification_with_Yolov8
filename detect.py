@@ -27,7 +27,7 @@ object_detected_time = None
 barcode = 'None'
 brand = 'None'
 model_name = 'None'
-
+model_color = ( 0, 0, 0)
 cap = cv2.VideoCapture(video_path)
 
 Yolo_model = YOLO(Yolo_model_name)
@@ -38,7 +38,8 @@ artel = {}
 shivaki = {}
 berg = {}
 maunfeld = {}
-
+global ok_img
+ok_img = cv2.imread('ok.png')
 def get_models() -> None:
     global samsung_rb, samsung_rt, artel, berg, shivaki, maunfeld
 
@@ -53,18 +54,25 @@ def get_models() -> None:
 
 def check_barcode(barcode:str) -> Tuple[str, str]:
     model = barcode[:4]
+    global model_color
     if len(model) >= 4:
         if model in samsung_rt.keys():
+            model_color = (255, 0, 0)
             return ("Samsung RT", samsung_rt[model])
         elif model in samsung_rb.keys():
+            model_color = (255, 0, 0)
             return ("Samsung RB", samsung_rb[model])
         elif model in artel.keys():
+            model_color = (0, 255, 0)
             return ("Artel", artel[model])
         elif model in shivaki.keys():
+            model_color = (0, 0, 255)
             return ("Shivaki", shivaki[model])
         elif model in berg.keys():
+            model_color = (0, 255, 255)
             return ("Berg", berg[model])
         elif model in maunfeld.keys():
+            model_color = (128, 128, 128)
             return ("Maunfeld", maunfeld[model])
         else:
             return ("None", "None")
@@ -169,64 +177,51 @@ def connect_camera(video_path):
     return cap
 
 
-def mask_frame(image, line_color, rect_width, rect_height):
+def mask_frame(image, model_color, rect_width, rect_height):
     # Calculate the position of the rectangle
     x_center = image.shape[1] // 2
     y_center = image.shape[0] // 2
-    top_left = (x_center - rect_width // 2, y_center - rect_height // 2)
-    bottom_right = (x_center + rect_width // 2, y_center + rect_height // 2)
-    cv2.rectangle(image, top_left, bottom_right, line_color, thickness=8)
-
-    # Create a mask
-    mask = np.zeros(image.shape[:2], dtype=np.uint8)
-    mask[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]] = 255
-
-    # Blur the entire image
-    blurred_image = cv2.GaussianBlur(image, (41, 41), 0)
-
-    # Apply the mask to combine the blurred image and the original image
-    masked = np.where(mask[:, :, None].astype(bool), image, blurred_image)
-    return masked
+    border_color = model_color  # Choose the color of the border (in BGR format)
+    bordered_frame = cv2.copyMakeBorder(image, 150, 150, 50 , 50, cv2.BORDER_CONSTANT, value=border_color)
+    
+    return bordered_frame
 
 def put_text_on_frame(frame, model):
     x_center = frame.shape[1] // 2
-    text_size = cv2.getTextSize(model, cv2.FONT_HERSHEY_SIMPLEX, 4, 6)[0]
+    text_size = cv2.getTextSize(model, cv2.FONT_HERSHEY_SIMPLEX, 1, 1)[0]
     w = int(x_center - text_size[0]/2)
-    cv2.putText(frame, model, (w, 100), cv2.FONT_HERSHEY_SIMPLEX, 4,(0, 255, 0), 6)
+    cv2.putText(frame, model, (w, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+    cv2.putText(frame, barcode, (frame.shape[1] - 400, frame.shape[0] - 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2, cv2.LINE_AA)
 
 def detection(result_img, detected_model, actual_model):
     global object_detected_time
+    if actual_model == "Maunfeld" or actual_model == "Berg":
+        actual_model = "Artel"
+    
     if detected_model == actual_model:  # Replace with your object's label
         if object_detected_time is None:
             object_detected_time = time.time()
         elif time.time() - object_detected_time >= 1:
             # Draw a tick on the frame
-            cv2.circle(result_img, (200, 200), 30, (0, 255, 0), thickness=5)
-        line_color = (0,255,0)
+            cv2.putText(result_img, "OK", (10, result_img.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3, cv2.LINE_AA)
+
 
     elif detected_model != 'None':
-        line_color = (0,0,255)
-        cv2.drawMarker(result_img, (200, 200),(0, 0, 255), markerType=cv2.MARKER_TILTED_CROSS, markerSize=50, thickness=5)
+        cv2.putText(result_img, "NG", (10, result_img.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 3, cv2.LINE_AA)
 
     else:
         object_detected_time = None
-        line_color = (255,0,0)
 
-    return line_color
+
 
 def remap_detected_model(detected_model):
-    if detected_model[:5] == 'Artel':
+    if detected_model[:5] == 'Artel' :
         detected_model = 'Artel'
-
-    elif detected_model[:11] == 'Samsung_RB':
-        detected_model = 'Samsung RB'
-
-    elif detected_model[:11] == 'Samsung_RT':
-        detected_model = 'Samsung RT'
-
+    elif detected_model[:7] == 'Samsung':
+        detected_model = 'Samsung'
     elif detected_model[:7] == 'Shivaki':
         detected_model = 'Shivaki'
-
+    
     return detected_model
 
 if __name__ == "__main__":
@@ -245,10 +240,9 @@ if __name__ == "__main__":
 
             result_img, detected_model = predict_and_detect(Yolo_model, img, classes=[], conf=confidance)
             detected_obj = remap_detected_model(detected_model)
-
-            line_color = detection(result_img, detected_obj,actual_model)
-            mask = mask_frame(result_img, line_color, rect_width, rect_height)
-            put_text_on_frame(mask, actual_model)
+            detection(result_img, detected_obj,brand)
+            mask = mask_frame(result_img, model_color, rect_width, rect_height)
+            put_text_on_frame(mask, brand + " " + model_name)
 
             cv2.imshow(screen_frame_name, mask)
 
