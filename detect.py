@@ -182,7 +182,7 @@ def mask_frame(image, model_color, rect_width, rect_height):
     x_center = image.shape[1] // 2
     y_center = image.shape[0] // 2
     border_color = model_color  # Choose the color of the border (in BGR format)
-    bordered_frame = cv2.copyMakeBorder(image, 150, 150, 50 , 50, cv2.BORDER_CONSTANT, value=border_color)
+    bordered_frame = cv2.copyMakeBorder(image, 50, 50, 50 , 50, cv2.BORDER_CONSTANT, value=border_color)
     
     return bordered_frame
 
@@ -190,8 +190,8 @@ def put_text_on_frame(frame, model):
     x_center = frame.shape[1] // 2
     text_size = cv2.getTextSize(model, cv2.FONT_HERSHEY_SIMPLEX, 1, 1)[0]
     w = int(x_center - text_size[0]/2)
-    cv2.putText(frame, model, (w, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
-    cv2.putText(frame, barcode, (frame.shape[1] - 400, frame.shape[0] - 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2, cv2.LINE_AA)
+    cv2.putText(frame, model, (w, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
+    cv2.putText(frame, barcode, (frame.shape[1] - 400, frame.shape[0] - 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3, cv2.LINE_AA)
 
 def detection(result_img, detected_model, actual_model):
     global object_detected_time
@@ -199,11 +199,11 @@ def detection(result_img, detected_model, actual_model):
         actual_model = "Artel"
     
     if detected_model == actual_model:  # Replace with your object's label
-        if object_detected_time is None:
-            object_detected_time = time.time()
-        elif time.time() - object_detected_time >= 1:
+        # if object_detected_time is None:
+        #     object_detected_time = time.time()
+        # elif time.time() - object_detected_time >= 1:
             # Draw a tick on the frame
-            cv2.putText(result_img, "OK", (10, result_img.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3, cv2.LINE_AA)
+        cv2.putText(result_img, "OK", (10, result_img.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3, cv2.LINE_AA)
 
 
     elif detected_model != 'None':
@@ -217,8 +217,10 @@ def detection(result_img, detected_model, actual_model):
 def remap_detected_model(detected_model):
     if detected_model[:5] == 'Artel' :
         detected_model = 'Artel'
-    elif detected_model[:7] == 'Samsung':
-        detected_model = 'Samsung'
+    elif detected_model[:10] == 'Samsung_RT':
+        detected_model = 'Samsung RT'
+    elif detected_model[:10] == 'Samsung_RB':
+        detected_model = 'Samsung RB'
     elif detected_model[:7] == 'Shivaki':
         detected_model = 'Shivaki'
     
