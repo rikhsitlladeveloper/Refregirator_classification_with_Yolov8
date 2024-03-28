@@ -30,7 +30,7 @@ brand = 'None'
 model_name = 'None'
 model_color = ( 0, 0, 0)
 cap = cv2.VideoCapture(video_path)
-
+cam_force_address = None
 Yolo_model = YOLO(Yolo_model_name)
 
 samsung_rb = {}
@@ -105,16 +105,14 @@ def start_tcp_server() -> None:
                     brand, model_name = check_barcode(barcode)
                     print(f"Fridge Brand: {brand}  Model: {model_name}")
 
-            except KeyboardInterrupt:
-                print('Socket close')
-                client_socket.close()
-                break
-
             except Exception as e:
                 print(f"Error while handling client connection: {e}")
 
             finally:
                 client_socket.close()
+    except KeyboardInterrupt:
+        print('Server Socket close')
+        server_socket.close()
 
     except Exception as e:
         print(f"Error occurred: {e}")
@@ -154,8 +152,9 @@ def connect_camera(video_path):
     print("Connecting...")
     while True:
         try:
-            if cam_force_address is not None:
-                requests.get(cam_force_address)
+            if cam_force_address is None:
+                pass
+            requests.get(cam_force_address)
 
             cap = cv2.VideoCapture(video_path)
 
@@ -170,8 +169,8 @@ def connect_camera(video_path):
         except Exception as e:
             print(e)
 
-            if blocking is False:
-                break
+            # if blocking is False:
+            #     break
 
             time.sleep(reconnection_time)
 
@@ -229,9 +228,7 @@ def remap_detected_model(detected_model):
 
 if __name__ == "__main__":
     get_models()
-    # tcp_server_thread = threading.Thread(target=start_tcp_server)
-    # tcp_server_thread.start()
-    tcp_server_thread = multiprocessing.Process(target=start_tcp_server, args=())
+    tcp_server_thread = threading.Thread(target=start_tcp_server)
     tcp_server_thread.start()
 
     try:
@@ -254,13 +251,11 @@ if __name__ == "__main__":
             cv2.imshow(screen_frame_name, mask)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
-                    tcp_server_thread.terminate()
-                    break
+                break
 
     except Exception as e:
         print("Error occured: ", e)
 
     finally:
-        tcp_server_thread.terminate()
         cap.release()
         cv2.destroyAllWindows()

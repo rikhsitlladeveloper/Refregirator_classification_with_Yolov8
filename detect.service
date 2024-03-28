@@ -4,10 +4,13 @@ After=network.target
 
 [Service]
 User=oem
+TimeoutStartSec=300
 WorkingDirectory=/home/oem/Project/Refregirator_classification_with_Yolov8
-ExecStartPre=/bin/sleep 10
+Environment="DISPLAY=:0"
+ExecStartPre=/bin/sleep 90
 ExecStart=/usr/bin/python3 detect.py
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
+
