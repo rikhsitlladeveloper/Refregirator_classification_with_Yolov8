@@ -7,6 +7,7 @@ import yaml
 import socket
 import json
 import threading
+import multiprocessing
 from typing import Tuple
 # from checkbarcode import BarCodeCheck
 with open('config.yaml', 'r') as file:
@@ -183,7 +184,7 @@ def mask_frame(image, model_color, rect_width, rect_height):
     y_center = image.shape[0] // 2
     border_color = model_color  # Choose the color of the border (in BGR format)
     bordered_frame = cv2.copyMakeBorder(image, 50, 50, 50 , 50, cv2.BORDER_CONSTANT, value=border_color)
-    
+
     return bordered_frame
 
 def put_text_on_frame(frame, model):
@@ -197,7 +198,7 @@ def detection(result_img, detected_model, actual_model):
     global object_detected_time
     if actual_model == "Maunfeld" or actual_model == "Berg":
         actual_model = "Artel"
-    
+
     if detected_model == actual_model:  # Replace with your object's label
         # if object_detected_time is None:
         #     object_detected_time = time.time()
@@ -223,14 +224,18 @@ def remap_detected_model(detected_model):
         detected_model = 'Samsung RB'
     elif detected_model[:7] == 'Shivaki':
         detected_model = 'Shivaki'
-    
+
     return detected_model
 
 if __name__ == "__main__":
     get_models()
-    tcp_server_thread = threading.Thread(target=start_tcp_server)
+    # tcp_server_thread = threading.Thread(target=start_tcp_server)
+    # tcp_server_thread.start()
+    tcp_server_thread = multiprocessing.Process(target=start_tcp_server, args=())
     tcp_server_thread.start()
+
     try:
+
         set_full_screen_mode(screen_frame_name)
         while True:
             success, img = cap.read()
@@ -249,11 +254,13 @@ if __name__ == "__main__":
             cv2.imshow(screen_frame_name, mask)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
+                    tcp_server_thread.terminate()
                     break
 
     except Exception as e:
         print("Error occured: ", e)
 
     finally:
+        tcp_server_thread.terminate()
         cap.release()
         cv2.destroyAllWindows()

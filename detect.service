@@ -1,0 +1,13 @@
+[Unit]
+Description=Texnopark CV
+After=network.target
+
+[Service]
+User=oem
+WorkingDirectory=/home/oem/Project/Refregirator_classification_with_Yolov8
+ExecStartPre=/bin/sleep 10
+ExecStart=/usr/bin/python3 detect.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
