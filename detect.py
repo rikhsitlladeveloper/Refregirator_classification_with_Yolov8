@@ -125,9 +125,9 @@ def set_full_screen_mode(frame_name):
 
 def predict(chosen_model, img, classes=[], conf=confidance):
     if classes:
-        results = chosen_model.predict(img, classes=classes, conf=confidance)
+        results = chosen_model.predict(img, classes=classes, verbose=False, conf=confidance)
     else:
-        results = chosen_model.predict(img, conf=confidance)
+        results = chosen_model.predict(img, verbose=False, conf=confidance)
 
     return results
 
