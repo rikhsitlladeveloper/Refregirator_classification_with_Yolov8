@@ -29,7 +29,6 @@ barcode = 'None'
 brand = 'None'
 model_name = 'None'
 model_color = ( 0, 0, 0)
-cap = cv2.VideoCapture(video_path)
 cam_force_address = None
 Yolo_model = YOLO(Yolo_model_name)
 
@@ -148,33 +147,20 @@ def predict_and_detect(chosen_model, img, classes=[], conf=confidance):
                         cv2.FONT_HERSHEY_PLAIN, 1, (255, 0, 0), 1)
     return img, model
 
-def connect_camera(video_path):
-    print("Connecting...")
-    while True:
-        try:
-            if cam_force_address is None:
-                pass
-            requests.get(cam_force_address)
-
-            cap = cv2.VideoCapture(video_path)
-
-            if not cap.isOpened():
-                time.sleep(reconnection_time)
-                raise Exception("Could not connect to a camera: {0}".format(video_path))
-
-            if cap.isOpened():
-                print("Connected to a camera: {}".format(video_path), flush=True)
-                break
-
-        except Exception as e:
-            print(e)
-
-            # if blocking is False:
-            #     break
-
-            time.sleep(reconnection_time)
-
-    return cap
+def connect_to_camera(video_path):
+  """Connects to the RTPS camera and returns the capture object."""
+  while True:
+    try:
+      cap = cv2.VideoCapture(video_path)
+      if cap.isOpened():
+        return cap
+      else:
+        print("Failed to open camera. Retrying...")
+    except Exception as e:
+      print(f"Error connecting to camera: {e}")
+    finally:
+      # Wait 10 seconds before retrying
+      cv2.waitKey(10000)
 
 
 def mask_frame(image, model_color, rect_width, rect_height):
@@ -230,7 +216,7 @@ if __name__ == "__main__":
     get_models()
     tcp_server_thread = threading.Thread(target=start_tcp_server)
     tcp_server_thread.start()
-
+    cap = connect_to_camera(video_path)
     try:
 
         set_full_screen_mode(screen_frame_name)
@@ -239,7 +225,8 @@ if __name__ == "__main__":
 
             if not success:
                 print("Stream stops!", flush=True)
-                cap = connect_camera(video_path)
+                cap.release()
+                cap = connect_to_camera(video_path)
                 continue
 
             result_img, detected_model = predict_and_detect(Yolo_model, img, classes=[], conf=confidance)
